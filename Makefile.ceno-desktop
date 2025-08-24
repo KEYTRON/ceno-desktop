@@ -1,0 +1,163 @@
+# Makefile for Ceno Desktop.app Build on macOS
+# Supports both Intel (x86_64) and Apple Silicon (ARM64)
+
+.PHONY: help build build-dev clean env package run test
+
+# Default target
+help:
+	@echo "Ceno Desktop.app Build Targets:"
+	@echo ""
+	@echo "  build          - Build Ceno Desktop.app for current architecture"
+	@echo "  build-dev      - Build Ceno Desktop.app for development"
+	@echo "  clean          - Clean build artifacts"
+	@echo "  env            - Show current environment"
+	@echo "  package        - Create Ceno Desktop.app package"
+	@echo "  run            - Run Ceno Desktop.app"
+	@echo "  test           - Run tests for Ceno Desktop"
+	@echo "  help           - Show this help message"
+	@echo ""
+
+# Detect architecture and build Ceno Desktop
+build: env
+	@echo "Building Ceno Desktop.app for $(shell uname -m)..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop && \
+	 export MACOSX_DEPLOYMENT_TARGET=$(if [ "$(shell uname -m)" = "arm64" ]; then echo "11.0"; else echo "10.15"; fi) && \
+	 ./mach build
+
+# Build Ceno Desktop for development
+build-dev: env
+	@echo "Building Ceno Desktop.app for development on $(shell uname -m)..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop-dev && \
+	 export MACOSX_DEPLOYMENT_TARGET=$(if [ "$(shell uname -m)" = "arm64" ]; then echo "11.0"; else echo "10.15"; fi) && \
+	 ./mach build
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning Ceno Desktop build artifacts..."
+	./mach clobber
+
+# Show current environment
+env:
+	@echo "Current environment for Ceno Desktop.app:"
+	@echo "  Architecture: $(shell uname -m)"
+	@echo "  OS: $(shell uname -s)"
+	@echo "  Kernel: $(shell uname -r)"
+	@echo "  Xcode: $(shell xcodebuild -version 2>/dev/null | head -n1 || echo 'Not installed')"
+	@echo "  SDK: $(shell xcrun --show-sdk-path 2>/dev/null || echo 'Not found')"
+	@echo "  Target App: Ceno Desktop.app"
+	@echo ""
+
+# Check prerequisites for Ceno Desktop
+check-prereqs:
+	@echo "Checking prerequisites for Ceno Desktop.app..."
+	@if ! command -v xcodebuild >/dev/null 2>&1; then \
+		echo "ERROR: Xcode is not installed. Please install Xcode from the App Store."; \
+		exit 1; \
+	fi
+	@if ! xcrun --show-sdk-path >/dev/null 2>&1; then \
+		echo "ERROR: macOS SDK not found. Please install Command Line Tools: xcode-select --install"; \
+		exit 1; \
+	fi
+	@if [ ! -f "mach" ]; then \
+		echo "ERROR: mach script not found. Please run this from the Mozilla/Gecko source directory."; \
+		exit 1; \
+	fi
+	@if [ ! -f "mozconfig-macos-ceno-desktop" ]; then \
+		echo "ERROR: Ceno Desktop configuration file not found."; \
+		exit 1; \
+	fi
+	@echo "All prerequisites for Ceno Desktop.app are satisfied."
+
+# Install dependencies for Ceno Desktop
+install-deps:
+	@echo "Installing dependencies for Ceno Desktop.app..."
+	@if ! command -v brew >/dev/null 2>&1; then \
+		echo "Installing Homebrew..."; \
+		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; \
+	fi
+	@echo "Installing build tools..."
+	brew install ccache
+	@echo "Dependencies for Ceno Desktop.app installed successfully."
+
+# Package Ceno Desktop.app
+package: build
+	@echo "Packaging Ceno Desktop.app..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop && \
+	 ./mach package
+
+# Run Ceno Desktop.app
+run: build
+	@echo "Running Ceno Desktop.app..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop && \
+	 ./mach run
+
+# Run Ceno Desktop.app with debugging
+run-debug: build-dev
+	@echo "Running Ceno Desktop.app with debugging..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop-dev && \
+	 ./mach run --debug
+
+# Test Ceno Desktop.app
+test: build
+	@echo "Running tests for Ceno Desktop.app..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop && \
+	 ./mach test
+
+# Show build configuration for Ceno Desktop
+config:
+	@echo "Ceno Desktop.app build configuration:"
+	@echo "  MOZCONFIG: mozconfig-macos-ceno-desktop"
+	@echo "  MACOSX_DEPLOYMENT_TARGET: $(if [ "$(shell uname -m)" = "arm64" ]; then echo "11.0"; else echo "10.15"; fi)"
+	@echo "  MOZ_PARALLEL_BUILD: $(shell sysctl -n hw.ncpu 2>/dev/null || echo "4")"
+	@echo "  Target Application: Ceno Desktop.app"
+	@echo "  Bundle Identifier: com.ceno.desktop"
+	@echo ""
+
+# Quick build with minimal output
+quick: env
+	@echo "Quick build of Ceno Desktop.app for $(shell uname -m)..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop && \
+	 ./mach build --quiet
+
+# Debug build of Ceno Desktop
+debug: env
+	@echo "Debug build of Ceno Desktop.app for $(shell uname -m)..."
+	@export MOZCONFIG=mozconfig-macos-ceno-desktop-dev && \
+	 ./mach build
+
+# Show Ceno Desktop.app location after build
+show-app: build
+	@echo "Ceno Desktop.app location:"
+	@if [ "$(shell uname -m)" = "arm64" ]; then \
+		APP_PATH="obj-arm64-apple-darwin/dist/Ceno Desktop.app"; \
+	else \
+		APP_PATH="obj-x86_64-apple-darwin/dist/Ceno Desktop.app"; \
+	fi && \
+	if [ -d "$$APP_PATH" ]; then \
+		echo "  Found at: $$APP_PATH"; \
+		ls -la "$$APP_PATH"; \
+		EXEC_PATH="$$APP_PATH/Contents/MacOS/Ceno Desktop"; \
+		if [ -f "$$EXEC_PATH" ]; then \
+			echo "  Executable at: $$EXEC_PATH"; \
+			ls -lh "$$EXEC_PATH"; \
+		fi; \
+	else \
+		echo "  Ceno Desktop.app not found at expected location"; \
+		find obj-* -name "*Ceno*" -type d 2>/dev/null || echo "  No Ceno Desktop.app found"; \
+	fi
+
+# Install Ceno Desktop.app to Applications folder
+install: build
+	@echo "Installing Ceno Desktop.app to Applications folder..."
+	@if [ "$(shell uname -m)" = "arm64" ]; then \
+		APP_PATH="obj-arm64-apple-darwin/dist/Ceno Desktop.app"; \
+	else \
+		APP_PATH="obj-x86_64-apple-darwin/dist/Ceno Desktop.app"; \
+	fi && \
+	if [ -d "$$APP_PATH" ]; then \
+		cp -R "$$APP_PATH" "/Applications/Ceno Desktop.app"; \
+		echo "  Ceno Desktop.app installed to /Applications/"; \
+	else \
+		echo "  ERROR: Ceno Desktop.app not found. Build first with 'make build'"; \
+		exit 1; \
+	fi

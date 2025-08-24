@@ -1,0 +1,126 @@
+# Makefile for macOS Mozilla/Gecko Build
+# Supports both Intel (x86_64) and Apple Silicon (ARM64)
+
+.PHONY: help build build-x86_64 build-arm64 build-dev clean env
+
+# Default target
+help:
+	@echo "macOS Mozilla/Gecko Build Targets:"
+	@echo ""
+	@echo "  build          - Build for current architecture (auto-detect)"
+	@echo "  build-x86_64   - Build for Intel (x86_64)"
+	@echo "  build-arm64    - Build for Apple Silicon (ARM64)"
+	@echo "  build-dev      - Build for development (current architecture)"
+	@echo "  clean          - Clean build artifacts"
+	@echo "  env            - Show current environment"
+	@echo "  help           - Show this help message"
+	@echo ""
+
+# Detect architecture and build
+build: env
+	@echo "Building for $(shell uname -m)..."
+	./mach build
+
+# Build for Intel (x86_64)
+build-x86_64:
+	@echo "Building for Intel (x86_64)..."
+	@export MOZCONFIG=mozconfig-macos-x86_64 && \
+	 export MACOSX_DEPLOYMENT_TARGET=10.15 && \
+	 ./mach build
+
+# Build for Apple Silicon (ARM64)
+build-arm64:
+	@echo "Building for Apple Silicon (ARM64)..."
+	@export MOZCONFIG=mozconfig-macos-arm64 && \
+	 export MACOSX_DEPLOYMENT_TARGET=11.0 && \
+	 ./mach build
+
+# Build for development (current architecture)
+build-dev: env
+	@echo "Building for development on $(shell uname -m)..."
+	@if [ "$(shell uname -m)" = "arm64" ]; then \
+		export MOZCONFIG=mozconfig-macos-arm64-dev && \
+		export MACOSX_DEPLOYMENT_TARGET=11.0; \
+	else \
+		export MOZCONFIG=mozconfig-macos-x86_64-dev && \
+		export MACOSX_DEPLOYMENT_TARGET=10.15; \
+	fi && \
+	./mach build
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning build artifacts..."
+	./mach clobber
+
+# Show current environment
+env:
+	@echo "Current environment:"
+	@echo "  Architecture: $(shell uname -m)"
+	@echo "  OS: $(shell uname -s)"
+	@echo "  Kernel: $(shell uname -r)"
+	@echo "  Xcode: $(shell xcodebuild -version 2>/dev/null | head -n1 || echo 'Not installed')"
+	@echo "  SDK: $(shell xcrun --show-sdk-path 2>/dev/null || echo 'Not found')"
+	@echo ""
+
+# Check prerequisites
+check-prereqs:
+	@echo "Checking prerequisites..."
+	@if ! command -v xcodebuild >/dev/null 2>&1; then \
+		echo "ERROR: Xcode is not installed. Please install Xcode from the App Store."; \
+		exit 1; \
+	fi
+	@if ! xcrun --show-sdk-path >/dev/null 2>&1; then \
+		echo "ERROR: macOS SDK not found. Please install Command Line Tools: xcode-select --install"; \
+		exit 1; \
+	fi
+	@if [ ! -f "mach" ]; then \
+		echo "ERROR: mach script not found. Please run this from the Mozilla/Gecko source directory."; \
+		exit 1; \
+	fi
+	@echo "All prerequisites are satisfied."
+
+# Install dependencies (macOS specific)
+install-deps:
+	@echo "Installing macOS dependencies..."
+	@if ! command -v brew >/dev/null 2>&1; then \
+		echo "Installing Homebrew..."; \
+		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; \
+	fi
+	@echo "Installing build tools..."
+	brew install ccache
+	@echo "Dependencies installed successfully."
+
+# Run tests
+test: build
+	@echo "Running tests..."
+	./mach test
+
+# Package the build
+package: build
+	@echo "Packaging build..."
+	./mach package
+
+# Show build configuration
+config:
+	@echo "Build configuration:"
+	@echo "  MOZCONFIG: $(MOZCONFIG)"
+	@echo "  MACOSX_DEPLOYMENT_TARGET: $(MACOSX_DEPLOYMENT_TARGET)"
+	@echo "  MOZ_PARALLEL_BUILD: $(MOZ_PARALLEL_BUILD)"
+	@echo ""
+
+# Quick build with minimal output
+quick: env
+	@echo "Quick build for $(shell uname -m)..."
+	./mach build --quiet
+
+# Debug build
+debug: env
+	@echo "Debug build for $(shell uname -m)..."
+	@if [ "$(shell uname -m)" = "arm64" ]; then \
+		export MOZCONFIG=mozconfig-macos-arm64-dev && \
+		export MACOSX_DEPLOYMENT_TARGET=11.0; \
+	else \
+		export MOZCONFIG=mozconfig-macos-x86_64-dev && \
+		export MACOSX_DEPLOYMENT_TARGET=10.15; \
+	fi && \
+	./mach build --debug
