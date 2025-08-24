@@ -22,12 +22,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, macos-12, macos-13]
+        os: [macos-latest, macos-13, macos-14]
         architecture: [x86_64, arm64]
         exclude:
           # Exclude older macOS versions for ARM64
-          - os: macos-12
-            architecture: arm64
           - os: macos-13
             architecture: arm64
 
